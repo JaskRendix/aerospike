@@ -1,0 +1,57 @@
+# --- Python bytecode ---
+__pycache__/
+*.py[cod]
+
+# --- Virtual environment ---
+.venv/
+
+# --- Build / packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- PyInstaller (if ever used) ---
+*.spec
+
+# --- pytest / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+
+# --- Matplotlib cache (rare but safe) ---
+.matplotlib/
+
+# --- Local development artifacts ---
+env/
+develop-eggs/
+downloads/
+parts/
+sdist/
+var/
+
+# --- Logs ---
+*.log
+
+# --- Sphinx docs (if ever built) ---
+docs/_build/
+
+# --- Project-specific directories ---
+references/
+references/Fortran Programs for Plug Nozzle Design - CC Lee - 1963.pdf
+
+# --- Source tree ---
+src/aerospike/__pycache__/
+src/aerospike_gui/__pycache__/
+src/aerospike_nozzle.egg-info/
+
+# --- Tests ---
+tests/__pycache__/
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
