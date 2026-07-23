@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QSpinBox, QWidget
 
 from aerospike_gui.controller import Controller
 
@@ -19,7 +19,8 @@ PROPELLANT_PRESETS = {
 class EngineInputsWidget(QWidget):
     """
     Widget containing all engine parameter inputs:
-    Tc, Pc, molar mass, gamma, er, Re, plus propellant presets.
+    Tc, Pc, molar mass, gamma, er, Re, truncation, flange, and bolt configuration,
+    plus propellant presets.
     """
 
     def __init__(self, controller: Controller, parent: QWidget | None = None) -> None:
@@ -84,6 +85,58 @@ class EngineInputsWidget(QWidget):
         self.re_box.valueChanged.connect(self.on_re_changed)
         form.addRow("Exit Radius Re [mm]", self.re_box)
 
+        # --- Spike Length Ratio (Truncation) ---
+        self.trunc_box = QDoubleSpinBox()
+        self.trunc_box.setRange(0.4, 1.0)
+        self.trunc_box.setSingleStep(0.05)
+        self.trunc_box.setDecimals(2)
+        self.trunc_box.setValue(getattr(controller.params, "truncation", 1.0))
+        self.trunc_box.valueChanged.connect(self.on_truncation_changed)
+        form.addRow("Spike Length Ratio", self.trunc_box)
+
+        # --- Flange Thickness [mm] ---
+        self.flange_thick_box = QDoubleSpinBox()
+        self.flange_thick_box.setRange(0.0, 20.0)
+        self.flange_thick_box.setSingleStep(1.0)
+        self.flange_thick_box.setDecimals(2)
+        self.flange_thick_box.setValue(getattr(controller.params, "flange_thickness", 0.005) * 1e3)
+        self.flange_thick_box.valueChanged.connect(self.on_flange_thick_changed)
+        form.addRow("Flange Thickness [mm]", self.flange_thick_box)
+
+        # --- Flange Radius [mm] ---
+        self.flange_rad_box = QDoubleSpinBox()
+        self.flange_rad_box.setRange(1.0, 100.0)
+        self.flange_rad_box.setSingleStep(1.0)
+        self.flange_rad_box.setDecimals(2)
+        self.flange_rad_box.setValue(getattr(controller.params, "flange_radius", 0.025) * 1e3)
+        self.flange_rad_box.valueChanged.connect(self.on_flange_rad_changed)
+        form.addRow("Flange Radius [mm]", self.flange_rad_box)
+
+        # --- Bolt Circle Radius [mm] ---
+        self.bolt_circle_box = QDoubleSpinBox()
+        self.bolt_circle_box.setRange(1.0, 80.0)
+        self.bolt_circle_box.setSingleStep(1.0)
+        self.bolt_circle_box.setDecimals(2)
+        self.bolt_circle_box.setValue(getattr(controller.params, "bolt_circle_radius", 0.020) * 1e3)
+        self.bolt_circle_box.valueChanged.connect(self.on_bolt_circle_changed)
+        form.addRow("Bolt Circle Radius [mm]", self.bolt_circle_box)
+
+        # --- Bolt Count ---
+        self.bolt_count_box = QSpinBox()
+        self.bolt_count_box.setRange(0, 24)
+        self.bolt_count_box.setValue(getattr(controller.params, "bolt_count", 6))
+        self.bolt_count_box.valueChanged.connect(self.on_bolt_count_changed)
+        form.addRow("Bolt Count", self.bolt_count_box)
+
+        # --- Bolt Hole Radius [mm] ---
+        self.bolt_hole_box = QDoubleSpinBox()
+        self.bolt_hole_box.setRange(0.0, 5.0)
+        self.bolt_hole_box.setSingleStep(0.5)
+        self.bolt_hole_box.setDecimals(2)
+        self.bolt_hole_box.setValue(getattr(controller.params, "bolt_hole_radius", 0.002) * 1e3)
+        self.bolt_hole_box.valueChanged.connect(self.on_bolt_hole_changed)
+        form.addRow("Bolt Hole Radius [mm]", self.bolt_hole_box)
+
     @Slot(int)
     def on_preset_selected(self, index: int) -> None:
         name = self.preset_combo.currentText()
@@ -91,7 +144,6 @@ class EngineInputsWidget(QWidget):
             return
         props = PROPELLANT_PRESETS[name]
         
-        # Block signals temporarily to prevent recursive loops while updating boxes
         self.tc_box.blockSignals(True)
         self.gamma_box.blockSignals(True)
         self.mm_box.blockSignals(True)
@@ -104,7 +156,6 @@ class EngineInputsWidget(QWidget):
         self.gamma_box.blockSignals(False)
         self.mm_box.blockSignals(False)
 
-        # Update controller params in bulk
         self.controller.update_param(
             Tc=props["tc"], gamma=props["gamma"], molar_m=props["molar_m"]
         )
@@ -135,3 +186,27 @@ class EngineInputsWidget(QWidget):
     @Slot(float)
     def on_re_changed(self, value: float) -> None:
         self.controller.update_param(Re=value * 1e-3)
+
+    @Slot(float)
+    def on_truncation_changed(self, value: float) -> None:
+        self.controller.update_param(truncation=value)
+
+    @Slot(float)
+    def on_flange_thick_changed(self, value: float) -> None:
+        self.controller.update_param(flange_thickness=value * 1e-3)
+
+    @Slot(float)
+    def on_flange_rad_changed(self, value: float) -> None:
+        self.controller.update_param(flange_radius=value * 1e-3)
+
+    @Slot(float)
+    def on_bolt_circle_changed(self, value: float) -> None:
+        self.controller.update_param(bolt_circle_radius=value * 1e-3)
+
+    @Slot(int)
+    def on_bolt_count_changed(self, value: int) -> None:
+        self.controller.update_param(bolt_count=value)
+
+    @Slot(float)
+    def on_bolt_hole_changed(self, value: float) -> None:
+        self.controller.update_param(bolt_hole_radius=value * 1e-3)
