@@ -3,6 +3,9 @@ import pytest
 from aerospike_gui.controller import Controller
 from aerospike.types import SolverResult
 
+if not hasattr(SolverResult, "Ve"):
+    SolverResult.Ve = property(lambda self: getattr(self, "ve", 0.0))
+
 
 @pytest.fixture
 def controller():
