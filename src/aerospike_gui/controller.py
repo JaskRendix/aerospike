@@ -53,6 +53,27 @@ class Controller:
         self.result = solve(self.params, Pa=self.Pa)
         return self.result
 
+    def run_altitude_sweep(self, alt_min: float = 0.0, alt_max: float = 40000.0, steps: int = 41):
+        """
+        Run the solver across a range of altitudes to generate off-design performance curves.
+        Returns altitudes [km], thrusts [N], and thrust coefficients [-].
+        """
+        import numpy as np
+        from aerospike.flow import get_Pa_from_alt
+        from aerospike.solver import solve
+
+        altitudes = np.linspace(alt_min, alt_max, steps)
+        thrusts = []
+        cfs = []
+
+        for alt in altitudes:
+            Pa_pa = get_Pa_from_alt(alt)
+            res = solve(self.params, Pa=Pa_pa)
+            thrusts.append(res.F)
+            cfs.append(res.Cf)
+
+        return altitudes / 1e3, np.array(thrusts), np.array(cfs)
+
     def plot(self) -> None:
         """
         Plot the current solver result using matplotlib.
