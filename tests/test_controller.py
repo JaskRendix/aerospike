@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from aerospike.gui.controller import Controller
+from aerospike_gui.controller import Controller
 from aerospike.types import SolverResult
 
 
