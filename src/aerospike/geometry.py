@@ -17,7 +17,8 @@ class Point3D:
 
 
 def spike_profile(result: SolverResult) -> list[tuple[float, float]]:
-    """Return 2D spike contour (x, r) in meters."""
+    """Return 2D spike contour (x, r) in meters with truncation applied if configured."""
+    params = getattr(result, "params", None)
     Re = (result.At + np.pi * result.ht**2 * np.sin(result.delta)) / (
         2.0 * np.pi * result.ht
     )
@@ -25,17 +26,23 @@ def spike_profile(result: SolverResult) -> list[tuple[float, float]]:
     x = result.X_over_Re * Re
     r = result.Rx_over_Re * Re
 
+    if params and params.truncation < 1.0:
+        max_x = x[-1] * params.truncation
+        valid_idx = x <= max_x
+        x = x[valid_idx]
+        r = r[valid_idx]
+
     return list(zip(x.tolist(), r.tolist()))
 
 
 def spike_profile_xyz(result: SolverResult, samples: int = 72) -> list[Point3D]:
     """Generate 3D point cloud by revolving spike contour."""
-    Re = (result.At + np.pi * result.ht**2 * np.sin(result.delta)) / (
-        2.0 * np.pi * result.ht
-    )
+    profile = spike_profile(result)
+    if not profile:
+        return []
 
-    x_2d = result.X_over_Re * Re
-    r_2d = result.Rx_over_Re * Re
+    x_2d = np.array([p[0] for p in profile])
+    r_2d = np.array([p[1] for p in profile])
 
     theta = np.linspace(0.0, 2.0 * np.pi, samples)
 
@@ -69,13 +76,22 @@ def export_spike_xyz(result: SolverResult, samples: int = 72) -> str:
 def export_spike_stl(
     result: SolverResult, radial_samples: int = 64, header: str = "Aerospike"
 ) -> str:
-    """Export spike geometry as ASCII STL mesh."""
+    """Export spike geometry as ASCII STL mesh with truncation, mounting flange, and bolt holes."""
+    params = getattr(result, "params", None)
+
     Re = (result.At + np.pi * result.ht**2 * np.sin(result.delta)) / (
         2.0 * np.pi * result.ht
     )
 
     x_2d = result.X_over_Re * Re
     r_2d = result.Rx_over_Re * Re
+
+    # --- Apply truncation ---
+    if params and params.truncation < 1.0:
+        max_x = x_2d[-1] * params.truncation
+        valid_idx = x_2d <= max_x
+        x_2d = x_2d[valid_idx]
+        r_2d = r_2d[valid_idx]
 
     step = max(1, len(x_2d) // 100)
     x_2d = x_2d[::step]
@@ -93,28 +109,86 @@ def export_spike_stl(
                 r_2d[i] * np.sin(theta[j]),
             ]
 
-    stl = [f"solid {header}"]
+    stl: list[str] = [f"solid {header}"]
 
+    def add_quad(p1, p2, p3, p4):
+        stl.append(" facet normal 0 0 0\n  outer loop")
+        stl.append(f"   vertex {p1[0]:.6f} {p1[1]:.6f} {p1[2]:.6f}")
+        stl.append(f"   vertex {p2[0]:.6f} {p2[1]:.6f} {p2[2]:.6f}")
+        stl.append(f"   vertex {p3[0]:.6f} {p3[1]:.6f} {p3[2]:.6f}")
+        stl.append("  endloop\n endfacet")
+
+        stl.append(" facet normal 0 0 0\n  outer loop")
+        stl.append(f"   vertex {p1[0]:.6f} {p1[1]:.6f} {p1[2]:.6f}")
+        stl.append(f"   vertex {p3[0]:.6f} {p3[1]:.6f} {p3[2]:.6f}")
+        stl.append(f"   vertex {p4[0]:.6f} {p4[1]:.6f} {p4[2]:.6f}")
+        stl.append("  endloop\n endfacet")
+
+    # --- Spike body ---
     for i in range(n_x - 1):
         for j in range(n_t):
             jn = (j + 1) % n_t
+            p1, p2, p3, p4 = grid[i, j], grid[i + 1, j], grid[i + 1, jn], grid[i, jn]
+            add_quad(p1, p2, p3, p4)
 
-            p1 = grid[i, j]
-            p2 = grid[i + 1, j]
-            p3 = grid[i + 1, jn]
-            p4 = grid[i, jn]
+    # --- Flange + bolt circle ---
+    if params and params.flange_thickness > 0.0 and params.flange_radius > r_2d[0]:
+        x_base = x_2d[0]
+        r_root = r_2d[0]
+        f_thick = params.flange_thickness
+        f_rad = params.flange_radius
 
-            stl.append(" facet normal 0 0 0\n  outer loop")
-            stl.append(f"   vertex {p1[0]:.6f} {p1[1]:.6f} {p1[2]:.6f}")
-            stl.append(f"   vertex {p2[0]:.6f} {p2[1]:.6f} {p2[2]:.6f}")
-            stl.append(f"   vertex {p3[0]:.6f} {p3[1]:.6f} {p3[2]:.6f}")
-            stl.append("  endloop\n endfacet")
+        x_top = x_base
+        x_bot = x_base - f_thick
 
-            stl.append(" facet normal 0 0 0\n  outer loop")
-            stl.append(f"   vertex {p1[0]:.6f} {p1[1]:.6f} {p1[2]:.6f}")
-            stl.append(f"   vertex {p3[0]:.6f} {p3[1]:.6f} {p3[2]:.6f}")
-            stl.append(f"   vertex {p4[0]:.6f} {p4[1]:.6f} {p4[2]:.6f}")
-            stl.append("  endloop\n endfacet")
+        r_ring = np.linspace(r_root, f_rad, 2)
+        for i_r in range(len(r_ring) - 1):
+            for j in range(n_t):
+                jn = (j + 1) % n_t
+                r1, r2 = r_ring[i_r], r_ring[i_r + 1]
+
+                # Top surface quad
+                p1 = [x_top, r1 * np.cos(theta[j]), r1 * np.sin(theta[j])]
+                p2 = [x_top, r2 * np.cos(theta[j]), r2 * np.sin(theta[j])]
+                p3 = [x_top, r2 * np.cos(theta[jn]), r2 * np.sin(theta[jn])]
+                p4 = [x_top, r1 * np.cos(theta[jn]), r1 * np.sin(theta[jn])]
+                add_quad(p1, p2, p3, p4)
+
+                # Bottom surface quad
+                p1b = [x_bot, r1 * np.cos(theta[j]), r1 * np.sin(theta[j])]
+                p2b = [x_bot, r2 * np.cos(theta[j]), r2 * np.sin(theta[j])]
+                p3b = [x_bot, r2 * np.cos(theta[jn]), r2 * np.sin(theta[jn])]
+                p4b = [x_bot, r1 * np.cos(theta[jn]), r1 * np.sin(theta[jn])]
+                add_quad(p1b, p2b, p3b, p4b)
+
+                # Outer cylindrical wall
+                p1w = p2
+                p2w = p2b
+                p3w = p3b
+                p4w = p3
+                add_quad(p1w, p2w, p3w, p4w)
+
+        # --- Bolt holes ---
+        if params.bolt_count > 0 and params.bolt_hole_radius > 0.0:
+            bolt_theta = np.linspace(0.0, 2.0 * np.pi, params.bolt_count, endpoint=False)
+            for bt in bolt_theta:
+                cx = x_bot
+                cy = params.bolt_circle_radius * np.cos(bt)
+                cz = params.bolt_circle_radius * np.sin(bt)
+
+                hole_theta = np.linspace(0.0, 2.0 * np.pi, 16, endpoint=False)
+                for j in range(len(hole_theta)):
+                    jn = (j + 1) % len(hole_theta)
+                    y1 = cy + params.bolt_hole_radius * np.cos(hole_theta[j])
+                    z1 = cz + params.bolt_hole_radius * np.sin(hole_theta[j])
+                    y2 = cy + params.bolt_hole_radius * np.cos(hole_theta[jn])
+                    z2 = cz + params.bolt_hole_radius * np.sin(hole_theta[jn])
+
+                    p1 = [x_bot, y1, z1]
+                    p2 = [x_top, y1, z1]
+                    p3 = [x_top, y2, z2]
+                    p4 = [x_bot, y2, z2]
+                    add_quad(p1, p2, p3, p4)
 
     stl.append(f"endsolid {header}")
     return "\n".join(stl)
@@ -135,7 +209,6 @@ def export_spike_svg(result: SolverResult) -> str:
     width_m = max_x - min_x if max_x > min_x else 1.0
     height_m = max_r - min_r if max_r > min_r else 1.0
 
-    # Scale to a clean pixel viewbox (e.g., 800x400 base)
     svg_w, svg_h = 800, 400
     margin = 50
 
@@ -150,10 +223,8 @@ def export_spike_svg(result: SolverResult) -> str:
         return margin + (x - min_x) * scale
 
     def trans_y(r: float) -> float:
-        # Flip Y for screen coordinates (SVG origin is top-left)
         return svg_h - margin - (r - min_r) * scale
 
-    # Build path commands for top contour and mirrored bottom contour
     top_pts = [(trans_x(x), trans_y(r)) for x, r in profile]
     bot_pts = [(trans_x(x), trans_y(-r)) for x, r in profile]
 
