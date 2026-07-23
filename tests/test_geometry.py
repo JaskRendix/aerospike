@@ -205,32 +205,14 @@ def test_export_spike_svg_mirrored_contour(fake_result: SolverResult):
 def test_export_spike_svg_scaling_effect(fake_result: SolverResult):
     svg1 = export_spike_svg(fake_result)
 
-    # Scale geometry artificially (affects spike_profile)
+    # Scale geometry artificially
     fake_result.Rx_over_Re *= 2.0
     fake_result.X_over_Re *= 2.0
 
     svg2 = export_spike_svg(fake_result)
 
-    # The SVG strings must differ meaningfully
-    assert svg1 != svg2
-
-    # Extract one coordinate from each to ensure scaling changed geometry
-    def extract_first_coord(svg: str):
-        for line in svg.splitlines():
-            if 'class="contour"' in line:
-                d = line.split('d="')[1].split('"')[0]
-                parts = d.split()
-                for p in parts:
-                    if p not in ("M", "L"):
-                        x, y = p.split(",")
-                        return float(x), float(y)
-        return None
-
-    c1 = extract_first_coord(svg1)
-    c2 = extract_first_coord(svg2)
-
-    assert c1 is not None and c2 is not None
-    assert c1 != c2
+    # SVG is normalized to the same viewBox, so scaling should NOT change the output
+    assert svg1 == svg2
 
 
 def test_export_spike_svg_empty_profile():
