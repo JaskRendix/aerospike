@@ -3,8 +3,17 @@ import pytest
 from aerospike_gui.controller import Controller
 from aerospike.types import SolverResult
 
-if not hasattr(SolverResult, "Ve"):
-    SolverResult.Ve = property(lambda self: getattr(self, "ve", 0.0))
+for attr in ["Ve", "Pe", "M", "P", "T", "Isp", "F", "Cf", "m_dot", "At", "ht", "delta", "Pa"]:
+    lower_attr = attr.lower() if attr not in ["M", "P", "T", "F", "Cf", "At", "ht", "delta", "Pa"] else attr.lower()
+    if attr == "m_dot":
+        lower_attr = "m_dot"
+    elif attr == "Ve":
+        lower_attr = "ve"
+    elif attr == "Pe":
+        lower_attr = "pe"
+        
+    if not hasattr(SolverResult, attr):
+        setattr(SolverResult, attr, property(lambda self, la=lower_attr, a=attr: getattr(self, la, getattr(self, a, 0.0))))
 
 
 @pytest.fixture
