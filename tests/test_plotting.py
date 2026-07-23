@@ -6,9 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-# IMPORTANT:
-# We now import the standalone plotting function
-# not the GUI version.
 from aerospike.plotting import plot_results
 from aerospike.types import SolverResult
 
@@ -107,3 +104,20 @@ def test_plot_results_multiple_calls(fake_result: SolverResult):
     fig = plt.gcf()
     for ax in fig.axes:
         assert len(ax.lines) <= 2
+
+
+def test_plot_results_summary_card_content(fake_result: SolverResult):
+    """Verify that the performance summary card actually generates text content."""
+    plt.close("all")
+    plot_results(fake_result)
+
+    fig = plt.gcf()
+    summary_ax = fig.axes[-1]  # The 6th subplot is the summary text panel
+    
+    texts = [t.get_text() for t in summary_ax.texts]
+    assert len(texts) > 0
+    
+    full_text = " ".join(texts)
+    assert "Thrust (F)" in full_text
+    assert "Vacuum Isp" in full_text
+    assert "Mass Flow" in full_text
