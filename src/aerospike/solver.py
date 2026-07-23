@@ -81,7 +81,7 @@ def solve(params: EngineParameters, Pa: float) -> SolverResult:
     F = Isp[-1] * m_dot * G0
     Cf = F / (params.Pc * At)
 
-    return SolverResult(
+    res = SolverResult(
         M=M,
         Rx_over_Re=Rx_over_Re,
         X_over_Re=X_over_Re,
@@ -95,4 +95,26 @@ def solve(params: EngineParameters, Pa: float) -> SolverResult:
         ht=ht,
         delta=delta,
         Pa=Pa,
+        params=params,
     )
+
+    # --- Truncation base drag correction ---
+    if params.truncation < 1.0:
+        x_full = res.X_over_Re
+        idx = np.searchsorted(x_full, x_full[-1] * params.truncation)
+        idx = min(max(idx, 0), len(x_full) - 1)
+
+        Re = params.Re
+        r_base = res.Rx_over_Re[idx] * Re
+        A_base = np.pi * (r_base ** 2)
+
+        delta_p = max(0.0, params.Pc - Pa)
+        base_drag = 0.5 * delta_p * A_base
+
+        F_corr = max(0.0, res.F - base_drag)
+        Cf_corr = F_corr / (res.m_dot * (res.F / res.Cf) / res.m_dot) if res.Cf > 0 else res.Cf
+
+        object.__setattr__(res, "F", F_corr)
+        object.__setattr__(res, "Cf", Cf_corr)
+
+    return res
