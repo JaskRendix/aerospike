@@ -9,7 +9,7 @@ from aerospike.geometry import (
     export_spike_svg,
     spike_profile_xyz,
 )
-from aerospike.types import SolverResult
+from aerospike.types import EngineParameters, SolverResult
 
 
 @pytest.fixture
@@ -236,3 +236,58 @@ def test_export_spike_svg_empty_profile():
     finally:
         # Restore original
         geom.spike_profile = original
+
+
+def test_spike_profile_truncation(fake_result: SolverResult):
+    """Verify spike profile length is reduced when truncation is enabled."""
+    # Full length profile
+    full_profile = spike_profile(fake_result)
+    
+    # Attach parameters with truncation
+    fake_result.params = EngineParameters(
+        Tc=1900, Pc=5e6, molar_m=20.18, gamma=1.27, Re=0.015, er=12, truncation=0.7
+    )
+    
+    trunc_profile = spike_profile(fake_result)
+    
+    assert len(trunc_profile) < len(full_profile)
+    assert trunc_profile[-1][0] < full_profile[-1][0]
+
+
+def test_export_spike_stl_structure(fake_result: SolverResult):
+    """Verify STL output has correct header, solid blocks, and face definitions."""
+    from aerospike.geometry import export_spike_stl
+    
+    stl_str = export_spike_stl(fake_result, radial_samples=16)
+    
+    assert isinstance(stl_str, str)
+    assert stl_str.startswith("solid Aerospike")
+    assert stl_str.endswith("endsolid Aerospike")
+    assert "facet normal" in stl_str
+    assert "outer loop" in stl_str
+    assert "vertex" in stl_str
+
+
+def test_export_spike_stl_with_flange_and_bolts(fake_result: SolverResult):
+    """Verify STL generator successfully incorporates flange and bolt holes without crashing."""
+    from aerospike.geometry import export_spike_stl
+    
+    fake_result.params = EngineParameters(
+        Tc=1900, 
+        Pc=5e6, 
+        molar_m=20.18, 
+        gamma=1.27, 
+        Re=0.015, 
+        er=12,
+        flange_thickness=0.005,
+        flange_radius=0.030,
+        bolt_circle_radius=0.022,
+        bolt_count=6,
+        bolt_hole_radius=0.002
+    )
+    
+    stl_str = export_spike_stl(fake_result, radial_samples=16)
+    
+    # Should contain valid ASCII mesh data including the extra geometry blocks
+    assert len(stl_str) > 500
+    assert "solid Aerospike" in stl_str
