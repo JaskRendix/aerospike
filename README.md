@@ -52,10 +52,10 @@ The interface provides panels for:
 - thrust or exit radius  
 - solver results  
 - embedded Matplotlib plot  
-- export (XYZ geometry)  
-- save/load (JSON)
+- save/load (JSON)  
+- export (XYZ point cloud or STL mesh)
 
-Press **Solve** to run the solver and update the results and plot.
+Press **Solve** to run the solver and update all panels.
 
 ---
 
@@ -68,19 +68,26 @@ The GUI includes a dedicated panel for this.
 
 ### Exporting Geometry
 
-Spike geometry can be exported as an **XYZ point file** suitable for import into CAD tools that support point‑curve import.
+The GUI supports exporting spike geometry in two formats:
+
+- **XYZ point cloud** — suitable for CAD tools that support point‑curve or loft-from-points workflows.
+- **ASCII STL mesh** — suitable for 3D printing, meshing, or direct import into CAD/CFD tools.
+
+A radial resolution selector (36–360 points) allows controlling mesh density.
 
 ---
 
 ### Solver
 
-The solver implements the **C.C. Lee plug‑nozzle contour algorithm**.
+The solver implements the C.C. Lee plug‑nozzle contour algorithm with modernized flow physics:
 
-Reference documents are included in the `references/` directory:
+- Newton–Raphson inversion of the area–Mach relation  
+- multi‑layer atmospheric model  
+- direct analytical inversion of Pe → er  
+- stable behavior for large expansion ratios  
+- improved geometry scaling
 
-- *Spike Contour Algorithm.docx*  
-- *Spike Contour Algorithm.pdf*  
-- *Fortran Programs for Plug Nozzle Design – C.C. Lee (1963)*
+Reference documents are included in the `references/` directory.
 
 ---
 
@@ -94,10 +101,10 @@ pytest
 
 Tests cover:
 
-- flow relations  
-- geometry generation  
+- flow relations (Mach, Pe, er(Pe), atmosphere)  
+- geometry generation (XYZ, STL)  
 - solver behavior  
-- plotting (standalone mode)  
+- plotting (standalone and GUI‑embedded)  
 - type definitions  
 
 The plotting module provides two APIs:
@@ -110,8 +117,8 @@ The plotting module provides two APIs:
 ### Repository Structure
 
 ```
-src/aerospike/        solver, flow relations, geometry, plotting, types
-src/aerospike_gui/    PySide6 GUI (widgets + controller + main window)
-tests/                pytest suite
+src/aerospike/        solver, flow relations, geometry, STL/XYZ export, plotting, types
+src/aerospike_gui/    PySide6 GUI (widgets, controller, main window)
+tests/                pytest suite (flow, solver, geometry, plotting)
 references/           original algorithm documents
 ```
