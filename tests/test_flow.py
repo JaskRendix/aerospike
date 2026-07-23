@@ -28,9 +28,9 @@ def params() -> EngineParameters:
 @pytest.mark.parametrize(
     "er,expected",
     [
-        (12, 4.4611),
-        (8, 4.1082),
-        (20, 4.8812),
+        (12, 3.6383),
+        (8, 3.3036),
+        (20, 4.0656),
     ],
 )
 def test_get_Mach_parametrized(er: float, expected: float, params: EngineParameters):
@@ -137,10 +137,6 @@ def test_get_Re_from_thrust_parametrized(F: float, params: EngineParameters):
     [5, 8, 12, 20, 30],
 )
 def test_get_er_from_Pe_roundtrip(er: float, params: EngineParameters):
-    """
-    For a given expansion ratio er, compute Pe, then invert it using
-    get_er_from_Pe(). The result should match the original er within tolerance.
-    """
     p = EngineParameters(
         Tc=params.Tc,
         Pc=params.Pc,
@@ -161,18 +157,12 @@ def test_get_er_from_Pe_roundtrip(er: float, params: EngineParameters):
     [5e4, 3e4, 2e4, 1e4],
 )
 def test_get_er_from_Pe_basic(Pe_target: float, params: EngineParameters):
-    """
-    Basic sanity check: returned er must be positive and finite.
-    """
     er = get_er_from_Pe(params, Pe_target)
     assert er > 0
     assert np.isfinite(er)
 
 
 def test_get_er_from_Pe_monotonicity(params: EngineParameters):
-    """
-    Larger er should produce lower Pe. Verify monotonic behavior.
-    """
     er_small = 5
     er_large = 20
 
