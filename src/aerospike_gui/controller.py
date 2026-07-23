@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Optional
 
-from aerospike.geometry import export_spike_xyz
+from aerospike.geometry import export_spike_stl, export_spike_xyz
 from aerospike.plotting import plot_results
 from aerospike.solver import solve
 from aerospike.types import EngineParameters, SolverResult
@@ -26,7 +26,7 @@ class Controller:
             er=12.0,
         )
 
-        # Ambient pressure
+        # Ambient pressure [Pa]
         self.Pa: float = 57e3
 
         # Last solver result
@@ -61,16 +61,28 @@ class Controller:
             return
         plot_results(self.result)
 
-    def export_xyz(self, filename: str, samples: int = 360) -> None:
+    def export_xyz(self, filename: str, samples: int = 72) -> None:
         """
-        Export spike geometry to an XYZ file.
+        Export spike geometry to an XYZ point cloud file.
         """
         if self.result is None:
             raise RuntimeError("No solver result available for export.")
 
         text = export_spike_xyz(self.result, samples=samples)
 
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def export_stl(self, filename: str, samples: int = 72) -> None:
+        """
+        Export spike geometry to a 3D ASCII STL mesh file for CAD & 3D printing.
+        """
+        if self.result is None:
+            raise RuntimeError("No solver result available for export.")
+
+        text = export_spike_stl(self.result, radial_samples=samples)
+
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(text)
 
     def get_thrust(self) -> float:
