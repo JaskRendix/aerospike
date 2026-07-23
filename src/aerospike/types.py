@@ -7,13 +7,19 @@ import numpy as np
 
 @dataclass(slots=True)
 class EngineParameters:
-    Tc: float
-    Pc: float
-    molar_m: float
-    gamma: float
-    Re: float
-    er: float
+    Tc: float        # Chamber temperature [K]
+    Pc: float        # Chamber pressure [Pa]
+    molar_m: float   # Molar mass [kg/mol]
+    gamma: float     # Specific heat ratio
+    Re: float        # Throat radius [m]
+    er: float        # Expansion ratio (Ae/At)
 
+    truncation: float = 1.0             # Fraction of spike length kept [0.4–1.0]
+    flange_thickness: float = 0.005     # Flange extrusion thickness [m]
+    flange_radius: float = 0.025        # Outer radius of mounting flange [m]
+    bolt_circle_radius: float = 0.020   # Bolt-hole circle radius [m]
+    bolt_count: int = 6                 # Number of bolts on the circle
+    bolt_hole_radius: float = 0.002     # Radius of each bolt hole [m]
 
 @dataclass(slots=True)
 class SolverResult:
@@ -31,3 +37,5 @@ class SolverResult:
     ht: float
     delta: float
     Pa: float
+
+    params: EngineParameters | None = None
