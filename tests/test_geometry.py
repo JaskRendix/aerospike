@@ -133,3 +133,124 @@ def test_export_spike_xyz(fake_result: SolverResult):
 
     # format check
     assert "," in lines[0]
+
+
+def test_export_spike_svg_basic(fake_result: SolverResult):
+    svg = export_spike_svg(fake_result)
+
+    # Basic structure checks
+    assert isinstance(svg, str)
+    assert "<svg" in svg
+    assert "</svg>" in svg
+
+    # Should contain two contour paths (top + bottom)
+    assert 'class="contour"' in svg
+    assert svg.count('class="contour"') == 2
+
+    # Should contain at least one 'M' and 'L' command
+    assert "M " in svg
+    assert "L " in svg
+
+    # Should contain a centerline
+    assert 'class="centerline"' in svg
+
+    # Should not be empty or trivial
+    assert len(svg) > 100
+
+
+def test_export_spike_svg_mirrored_contour(fake_result: SolverResult):
+    svg = export_spike_svg(fake_result)
+
+    # Extract path commands for top and bottom contours
+    lines = svg.splitlines()
+    top_path = next(l for l in lines if 'class="contour"' in l and 'path' in l)
+    bot_path = next(l for l in lines if 'class="contour"' in l and 'path' in l and l != top_path)
+
+    # Parse coordinates from "M x,y L x,y ..." sequences
+    def parse_coords(path_line: str):
+        coords = []
+        d = path_line.split('d="')[1].split('"')[0]
+        for cmd in d.split():
+            if cmd in ("M", "L"):
+                continue
+            x, y = cmd.split(",")
+            coords.append((float(x), float(y)))
+        return coords
+
+    top_coords = parse_coords(top_path)
+    bot_coords = parse_coords(bot_path)
+
+    # Same number of points
+    assert len(top_coords) == len(bot_coords)
+
+    # X coordinates must match; Y must be mirrored around centerline
+    # Find centerline Y from SVG
+    centerline_y = None
+    for l in lines:
+        if 'class="centerline"' in l:
+            parts = l.split()
+            for p in parts:
+                if p.startswith("y1="):
+                    centerline_y = float(p.split('"')[1])
+                    break
+    assert centerline_y is not None
+
+    for (xt, yt), (xb, yb) in zip(top_coords, bot_coords):
+        assert xt == pytest.approx(xb)
+        # mirrored around centerline
+        assert yt == pytest.approx(2 * centerline_y - yb, rel=1e-3)
+
+
+def test_export_spike_svg_scaling_effect(fake_result: SolverResult):
+    svg1 = export_spike_svg(fake_result)
+
+    # Scale geometry artificially
+    fake_result.At *= 2.0
+    fake_result.ht *= 2.0
+
+    svg2 = export_spike_svg(fake_result)
+
+    # The SVG strings must differ meaningfully
+    assert svg1 != svg2
+
+    # Extract one coordinate from each to ensure scaling changed geometry
+    def extract_first_coord(svg: str):
+        for line in svg.splitlines():
+            if 'class="contour"' in line:
+                d = line.split('d="')[1].split('"')[0]
+                parts = d.split()
+                for p in parts:
+                    if p not in ("M", "L"):
+                        x, y = p.split(",")
+                        return float(x), float(y)
+        return None
+
+    c1 = extract_first_coord(svg1)
+    c2 = extract_first_coord(svg2)
+
+    assert c1 is not None and c2 is not None
+    # Coordinates must differ after scaling
+    assert c1 != c2
+
+
+def test_export_spike_svg_empty_profile():
+
+    class DummyResult:
+        pass
+
+    # Monkeypatch spike_profile to return empty list
+    original = spike_profile
+
+    try:
+        def empty_profile(_):
+            return []
+
+        # Replace spike_profile temporarily
+        import aerospike.geometry as geom
+        geom.spike_profile = empty_profile
+
+        svg = export_spike_svg(DummyResult())
+        assert svg.strip() == "<svg></svg>"
+    finally:
+        # Restore original
+        geom.spike_profile = original
