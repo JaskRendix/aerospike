@@ -175,3 +175,34 @@ def test_solver_result_shapes(test_params):
     assert len(result.P) == N
     assert len(result.T) == N
     assert len(result.Isp) == N
+
+
+def test_solver_with_truncation(test_params: EngineParameters):
+    """Verify that enabling spike truncation correctly adjusts performance outputs (F and Cf)."""
+    # Solve standard full-length spike
+    res_full = solve(test_params, Pa=57e3)
+
+    # Solve with truncation enabled
+    truncated_params = replace(test_params, truncation=0.7)
+    res_trunc = solve(truncated_params, Pa=57e3)
+
+    # Truncation changes the effective exit area and applies base drag, 
+    # resulting in a modified total thrust compared to full length.
+    assert res_trunc.F > 0
+    assert res_trunc.Cf > 0
+    assert res_trunc.F != res_full.F
+
+
+def test_solver_truncation_base_drag_ambient_extremes(test_params: EngineParameters):
+    """Ensure base drag calculation handles extreme ambient pressures gracefully during truncation."""
+    truncated_params = replace(test_params, truncation=0.8)
+
+    # Vacuum condition (Pa = 0)
+    res_vacuum = solve(truncated_params, Pa=0.0)
+    assert res_vacuum.F > 0
+    assert np.isfinite(res_vacuum.F)
+
+    # High overexpansion condition (Pa >> Pc)
+    res_high_pa = solve(truncated_params, Pa=200e3)
+    assert res_high_pa.F >= 0  # Should clamp to zero or positive via max(0.0, ...)
+    assert np.isfinite(res_high_pa.F)
