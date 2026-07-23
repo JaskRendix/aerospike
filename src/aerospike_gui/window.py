@@ -132,3 +132,31 @@ class MainWindow(QMainWindow):
                 "Solver Error",
                 f"An error occurred during calculation:\n{e}",
             )
+
+    def run_altitude_sweep_plot(self) -> None:
+        """Run altitude performance sweep and display in a popup plot window."""
+        try:
+            import matplotlib.pyplot as plt
+            alt_km, thrusts, cfs = self.controller.run_altitude_sweep()
+
+            fig, ax1 = plt.subplots(figsize=(8, 5))
+
+            color = 'tab:red'
+            ax1.set_xlabel('Altitude AMSL [km]')
+            ax1.set_ylabel('Thrust F [N]', color=color)
+            ax1.plot(alt_km, thrusts, color=color, linewidth=2, label='Thrust [N]')
+            ax1.tick_params(axis='y', labelcolor=color)
+            ax1.grid(True, linestyle='--', alpha=0.5)
+
+            ax2 = ax1.twinx()  
+            color = 'tab:blue'
+            ax2.set_ylabel('Thrust Coefficient $C_f$', color=color)
+            ax2.plot(alt_km, cfs, color=color, linewidth=2, linestyle='-.', label='Cf [-]')
+            ax2.tick_params(axis='y', labelcolor=color)
+
+            plt.title('Aerospike Off-Design Altitude Performance Sweep')
+            fig.tight_layout()
+            plt.show()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Sweep Error", f"Failed to run altitude sweep:\n{e}")
