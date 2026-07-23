@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -25,12 +26,12 @@ from aerospike_gui.widgets.solve_panel import SolvePanel
 class MainWindow(QMainWindow):
     """
     Full PySide6 GUI for Aerospike Nozzle Design.
-    Assembles all modular widgets and coordinates layout + solver refresh.
+    Assembles modular widgets and coordinates layout + solver refresh.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Aerospike Nozzle Design (PySide6)")
+        self.setWindowTitle("Aerospike Nozzle Design & CAD Generator (PySide6)")
         self.resize(1400, 900)
 
         # Controller (central logic)
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
 
         root_layout = QHBoxLayout(central)
 
+        # Left scrollable area for inputs and action buttons
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
         left_container = QWidget()
@@ -68,31 +70,65 @@ class MainWindow(QMainWindow):
         left_scroll.setWidget(left_container)
         root_layout.addWidget(left_scroll, stretch=1)
 
+        # Right container for results and Matplotlib plotting panel
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
 
         self.results_panel = ResultsPanel(self.controller)
         self.plot_panel = PlotPanel(self.controller)
 
-        right_layout.addWidget(self.results_panel)
-        right_layout.addWidget(self.plot_panel)
+        right_layout.addWidget(self.results_panel, stretch=1)
+        right_layout.addWidget(self.plot_panel, stretch=3)
 
         root_layout.addWidget(right_container, stretch=2)
 
-        # Initial empty refresh
-        self._refresh_all()
+        # Wire Signals
+        self._connect_signals()
+
+        # Run initial solve on launch
+        self.run_solver()
+
+    def _connect_signals(self) -> None:
+        """Connect button events and signals across panels."""
+        # Connect Solve button
+        if hasattr(self.solve_panel, "solve_requested"):
+            self.solve_panel.solve_requested.connect(self.run_solver)
+        elif hasattr(self.solve_panel, "solve_button"):
+            self.solve_panel.solve_button.clicked.connect(self.run_solver)
+
+        # Connect JSON Load signal (if available) to reload fields and re-solve
+        if hasattr(self.save_load_panel, "loaded"):
+            self.save_load_panel.loaded.connect(self._on_config_loaded)
+
+    def _on_config_loaded(self) -> None:
+        """Triggered when a user loads a JSON configuration file."""
+        # Refresh field values across input panels
+        for widget in (
+            self.engine_inputs,
+            self.ambient_inputs,
+            self.expansion_inputs,
+            self.sizing_inputs,
+        ):
+            if hasattr(widget, "refresh_from_controller"):
+                widget.refresh_from_controller()
+
+        self.run_solver()
 
     def _refresh_all(self) -> None:
-        """
-        Refresh results + plot panel.
-        Called after each solve.
-        """
-        self.results_panel.refresh()
-        self.plot_panel.refresh()
+        """Refresh results + plot panel. Called after each solve."""
+        if hasattr(self.results_panel, "refresh"):
+            self.results_panel.refresh()
+        if hasattr(self.plot_panel, "refresh"):
+            self.plot_panel.refresh()
 
     def run_solver(self) -> None:
-        """
-        Run solver and refresh UI.
-        """
-        self.controller.run_solver()
-        self._refresh_all()
+        """Run aerospike solver and refresh UI components."""
+        try:
+            self.controller.run_solver()
+            self._refresh_all()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Solver Error",
+                f"An error occurred during calculation:\n{e}",
+            )
