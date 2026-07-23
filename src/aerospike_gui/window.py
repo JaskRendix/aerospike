@@ -134,27 +134,35 @@ class MainWindow(QMainWindow):
             )
 
     def run_altitude_sweep_plot(self) -> None:
-        """Run altitude performance sweep and display in a popup plot window."""
+        """Run altitude performance sweep and display comparison plot in a popup window."""
         try:
             import matplotlib.pyplot as plt
-            alt_km, thrusts, cfs = self.controller.run_altitude_sweep()
+            alt_km, spike_thrusts, bell_thrusts, cfs = self.controller.run_altitude_sweep()
 
-            fig, ax1 = plt.subplots(figsize=(8, 5))
+            fig, ax1 = plt.subplots(figsize=(9, 5))
 
-            color = 'tab:red'
-            ax1.set_xlabel('Altitude AMSL [km]')
-            ax1.set_ylabel('Thrust F [N]', color=color)
-            ax1.plot(alt_km, thrusts, color=color, linewidth=2, label='Thrust [N]')
-            ax1.tick_params(axis='y', labelcolor=color)
-            ax1.grid(True, linestyle='--', alpha=0.5)
+            # Plot Thrust Curves
+            ax1.set_xlabel("Altitude AMSL [km]", fontsize=11)
+            ax1.set_ylabel("Thrust F [N]", fontsize=11)
+            
+            ax1.plot(alt_km, spike_thrusts, color="tab:blue", linewidth=2.5, label="Aerospike Thrust [N]")
+            ax1.plot(alt_km, bell_thrusts, color="tab:orange", linewidth=2.0, linestyle="--", label="Equivalent Bell Nozzle [N]")
+            
+            ax1.tick_params(axis="y")
+            ax1.grid(True, linestyle="--", alpha=0.5)
 
+            # Secondary axis for Aerospike Thrust Coefficient Cf
             ax2 = ax1.twinx()  
-            color = 'tab:blue'
-            ax2.set_ylabel('Thrust Coefficient $C_f$', color=color)
-            ax2.plot(alt_km, cfs, color=color, linewidth=2, linestyle='-.', label='Cf [-]')
-            ax2.tick_params(axis='y', labelcolor=color)
+            ax2.set_ylabel("Aerospike Thrust Coefficient $C_f$", color="tab:green", fontsize=11)
+            ax2.plot(alt_km, cfs, color="tab:green", linewidth=1.5, linestyle=":", label="Aerospike $C_f$")
+            ax2.tick_params(axis="y", labelcolor="tab:green")
 
-            plt.title('Aerospike Off-Design Altitude Performance Sweep')
+            # Combined Legend
+            lines_1, labels_1 = ax1.get_legend_handles_labels()
+            lines_2, labels_2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper right")
+
+            plt.title("Altitude Performance Sweep: Aerospike vs. Bell Nozzle", fontsize=12, fontweight="bold")
             fig.tight_layout()
             plt.show()
 
