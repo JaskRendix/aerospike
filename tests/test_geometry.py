@@ -205,9 +205,9 @@ def test_export_spike_svg_mirrored_contour(fake_result: SolverResult):
 def test_export_spike_svg_scaling_effect(fake_result: SolverResult):
     svg1 = export_spike_svg(fake_result)
 
-    # Scale geometry artificially
-    fake_result.At *= 2.0
-    fake_result.ht *= 2.0
+    # Scale geometry artificially (affects spike_profile)
+    fake_result.Rx_over_Re *= 2.0
+    fake_result.X_over_Re *= 2.0
 
     svg2 = export_spike_svg(fake_result)
 
@@ -230,7 +230,6 @@ def test_export_spike_svg_scaling_effect(fake_result: SolverResult):
     c2 = extract_first_coord(svg2)
 
     assert c1 is not None and c2 is not None
-    # Coordinates must differ after scaling
     assert c1 != c2
 
 
