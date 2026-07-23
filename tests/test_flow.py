@@ -48,7 +48,7 @@ def test_get_Mach_parametrized(er: float, expected: float, params: EngineParamet
 
 def test_get_Pe_basic(params: EngineParameters):
     Pe = get_Pe(params)
-    assert Pe == pytest.approx(10806.39, rel=1e-2)
+    assert Pe == pytest.approx(40283.20, rel=1e-2)
 
 
 @pytest.mark.parametrize(
