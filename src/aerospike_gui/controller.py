@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Optional
 
-from aerospike.geometry import export_spike_stl, export_spike_xyz
+from aerospike.geometry import export_spike_stl, export_spike_svg, export_spike_xyz
 from aerospike.plotting import plot_results
 from aerospike.solver import solve
 from aerospike.types import EngineParameters, SolverResult
@@ -118,6 +118,18 @@ class Controller:
             raise RuntimeError("No solver result available for export.")
 
         text = export_spike_stl(self.result, radial_samples=samples)
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def export_svg(self, filename: str) -> None:
+        """
+        Export 2D spike contour to an SVG vector graphic file for laser cutting / CAD.
+        """
+        if self.result is None:
+            raise RuntimeError("No solver result available for export.")
+
+        text = export_spike_svg(self.result)
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write(text)
