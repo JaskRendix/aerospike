@@ -6,6 +6,7 @@ from aerospike.geometry import (
     export_spike_xyz,
     export_xyz,
     spike_profile,
+    export_spike_svg,
     spike_profile_xyz,
 )
 from aerospike.types import SolverResult
