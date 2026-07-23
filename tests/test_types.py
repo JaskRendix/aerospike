@@ -20,6 +20,31 @@ def test_engine_parameters_basic():
     assert p.gamma == 1.27
     assert p.Re == 0.015
     assert p.er == 12
+    # Verify new default fields
+    assert p.truncation == 1.0
+    assert p.flange_thickness == 0.005
+    assert p.flange_radius == 0.025
+    assert p.bolt_circle_radius == 0.020
+    assert p.bolt_count == 6
+    assert p.bolt_hole_radius == 0.002
+
+
+def test_engine_parameters_custom_defaults():
+    """Verify that optional geometric and structural parameters can be overridden."""
+    p = EngineParameters(
+        Tc=1900,
+        Pc=5e6,
+        molar_m=20.18,
+        gamma=1.27,
+        Re=0.015,
+        er=12,
+        truncation=0.7,
+        flange_thickness=0.01,
+        bolt_count=8,
+    )
+    assert p.truncation == 0.7
+    assert p.flange_thickness == 0.01
+    assert p.bolt_count == 8
 
 
 def test_engine_parameters_slots():
@@ -73,6 +98,32 @@ def test_solver_result_basic():
     assert r.F == 100.0
     assert r.Cf == 1.5
     assert r.Pa == 101e3
+    assert r.params is None  # Verify default optional link
+
+
+def test_solver_result_with_params():
+    """Verify SolverResult correctly binds an EngineParameters instance."""
+    N = 5
+    params = EngineParameters(1900, 5e6, 20.18, 1.27, 0.015, 12, truncation=0.8)
+    r = SolverResult(
+        M=np.zeros(N),
+        Rx_over_Re=np.zeros(N),
+        X_over_Re=np.zeros(N),
+        P=np.zeros(N),
+        T=np.zeros(N),
+        Isp=np.zeros(N),
+        F=100.0,
+        Cf=1.5,
+        m_dot=0.2,
+        At=0.0005,
+        ht=0.005,
+        delta=0.3,
+        Pa=101e3,
+        params=params,
+    )
+
+    assert r.params is not None
+    assert r.params.truncation == 0.8
 
 
 def test_solver_result_shapes():
