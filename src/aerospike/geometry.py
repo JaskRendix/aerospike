@@ -118,3 +118,60 @@ def export_spike_stl(
 
     stl.append(f"endsolid {header}")
     return "\n".join(stl)
+
+
+def export_spike_svg(result: SolverResult) -> str:
+    """Export 2D spike contour as an SVG vector graphic."""
+    profile = spike_profile(result)
+    if not profile:
+        return "<svg></svg>"
+
+    xs = [p[0] for p in profile]
+    rs = [p[1] for p in profile]
+
+    min_x, max_x = min(xs), max(xs)
+    min_r, max_r = min(rs), max(rs)
+
+    width_m = max_x - min_x if max_x > min_x else 1.0
+    height_m = max_r - min_r if max_r > min_r else 1.0
+
+    # Scale to a clean pixel viewbox (e.g., 800x400 base)
+    svg_w, svg_h = 800, 400
+    margin = 50
+
+    plot_w = svg_w - 2 * margin
+    plot_h = svg_h - 2 * margin
+
+    scale_x = plot_w / width_m
+    scale_y = plot_h / height_m
+    scale = min(scale_x, scale_y)
+
+    def trans_x(x: float) -> float:
+        return margin + (x - min_x) * scale
+
+    def trans_y(r: float) -> float:
+        # Flip Y for screen coordinates (SVG origin is top-left)
+        return svg_h - margin - (r - min_r) * scale
+
+    # Build path commands for top contour and mirrored bottom contour
+    top_pts = [(trans_x(x), trans_y(r)) for x, r in profile]
+    bot_pts = [(trans_x(x), trans_y(-r)) for x, r in profile]
+
+    path_top = " ".join(f"{'M' if i == 0 else 'L'} {p[0]:.2f},{p[1]:.2f}" for i, p in enumerate(top_pts))
+    path_bot = " ".join(f"{'M' if i == 0 else 'L'} {p[0]:.2f},{p[1]:.2f}" for i, p in enumerate(bot_pts))
+
+    svg_lines = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {svg_w} {svg_h}" width="100%" height="100%">',
+        '  <style>',
+        '    .contour { fill: none; stroke: #2563eb; stroke-width: 2px; }',
+        '    .centerline { stroke: #94a3b8; stroke-dasharray: 4; stroke-width: 1px; }',
+        '    .grid { stroke: #e2e8f0; stroke-width: 0.5px; }',
+        '  </style>',
+        f'  <rect width="{svg_w}" height="{svg_h}" fill="#ffffff"/>',
+        f'  <line x1="{margin}" y1="{trans_y(0.0)}" x2="{svg_w - margin}" y2="{trans_y(0.0)}" class="centerline" />',
+        f'  <path d="{path_top}" class="contour" />',
+        f'  <path d="{path_bot}" class="contour" />',
+        '</svg>'
+    ]
+
+    return "\n".join(svg_lines)
