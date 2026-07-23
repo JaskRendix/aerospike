@@ -45,8 +45,7 @@ gui = [
 ]
 test = [
     "pytest",
-    "pytest-cov",
-    "pytest-qt"
+    "pytest-cov"
 ]
 
 [project.scripts]
