@@ -3,15 +3,23 @@ from __future__ import annotations
 from dataclasses import replace
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QWidget
 
 from aerospike_gui.controller import Controller
+
+PROPELLANT_PRESETS = {
+    "Custom": {"gamma": 1.27, "tc": 1900.0, "molar_m": 20.18},
+    "LOX / Methane": {"gamma": 1.20, "tc": 3500.0, "molar_m": 20.5},
+    "LOX / RP-1": {"gamma": 1.24, "tc": 3600.0, "molar_m": 22.0},
+    "LOX / LH2": {"gamma": 1.26, "tc": 3200.0, "molar_m": 10.0},
+    "N2O / HTPB (Hybrid)": {"gamma": 1.25, "tc": 3100.0, "molar_m": 25.0},
+}
 
 
 class EngineInputsWidget(QWidget):
     """
     Widget containing all engine parameter inputs:
-    Tc, Pc, molar mass, gamma, er, Re.
+    Tc, Pc, molar mass, gamma, er, Re, plus propellant presets.
     """
 
     def __init__(self, controller: Controller, parent: QWidget | None = None) -> None:
@@ -19,6 +27,12 @@ class EngineInputsWidget(QWidget):
         self.controller = controller
 
         form = QFormLayout(self)
+
+        # --- Propellant Presets Dropdown ---
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(list(PROPELLANT_PRESETS.keys()))
+        self.preset_combo.currentIndexChanged.connect(self.on_preset_selected)
+        form.addRow("Propellant Preset", self.preset_combo)
 
         # --- Chamber Temperature Tc [K] ---
         self.tc_box = QDoubleSpinBox()
@@ -70,8 +84,34 @@ class EngineInputsWidget(QWidget):
         self.re_box.valueChanged.connect(self.on_re_changed)
         form.addRow("Exit Radius Re [mm]", self.re_box)
 
+    @Slot(int)
+    def on_preset_selected(self, index: int) -> None:
+        name = self.preset_combo.currentText()
+        if name not in PROPELLANT_PRESETS or name == "Custom":
+            return
+        props = PROPELLANT_PRESETS[name]
+        
+        # Block signals temporarily to prevent recursive loops while updating boxes
+        self.tc_box.blockSignals(True)
+        self.gamma_box.blockSignals(True)
+        self.mm_box.blockSignals(True)
+
+        self.tc_box.setValue(props["tc"])
+        self.gamma_box.setValue(props["gamma"])
+        self.mm_box.setValue(props["molar_m"])
+
+        self.tc_box.blockSignals(False)
+        self.gamma_box.blockSignals(False)
+        self.mm_box.blockSignals(False)
+
+        # Update controller params in bulk
+        self.controller.update_param(
+            Tc=props["tc"], gamma=props["gamma"], molar_m=props["molar_m"]
+        )
+
     @Slot(float)
     def on_tc_changed(self, value: float) -> None:
+        self.preset_combo.setCurrentText("Custom")
         self.controller.update_param(Tc=value)
 
     @Slot(float)
@@ -80,10 +120,12 @@ class EngineInputsWidget(QWidget):
 
     @Slot(float)
     def on_mm_changed(self, value: float) -> None:
+        self.preset_combo.setCurrentText("Custom")
         self.controller.update_param(molar_m=value)
 
     @Slot(float)
     def on_gamma_changed(self, value: float) -> None:
+        self.preset_combo.setCurrentText("Custom")
         self.controller.update_param(gamma=value)
 
     @Slot(float)
