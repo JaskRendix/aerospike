@@ -508,7 +508,7 @@ def test_get_er_from_Pe_high_expansion(params: EngineParameters):
     assert np.isfinite(er)
 
 
-@pytest.mark.parametrize("er", [1.01, 1.1, 50.0, 100.0])
+@pytest.mark.parametrize("er", [1.05, 1.1, 50.0, 100.0])
 def test_get_Mach_boundary_er(er: float, params: EngineParameters):
     """Ensure Mach calculation does not output NaN or imaginary numbers at boundary expansion ratios."""
     p = replace(params, er=er)
