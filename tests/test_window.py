@@ -1,5 +1,5 @@
 import pytest
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 from aerospike_gui.window import MainWindow
 
 
