@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from aerospike.flow import (
     get_alt_from_Pa,
     get_er_from_Pe,
