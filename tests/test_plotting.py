@@ -1,6 +1,6 @@
 import matplotlib
 
-matplotlib.use("Agg")  # headless backend for CI
+matplotlib.use("Agg", force=True)
 
 import matplotlib.pyplot as plt
 import numpy as np
