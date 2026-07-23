@@ -80,8 +80,23 @@ The GUI includes a dedicated panel for this.
 The GUI supports exporting spike geometry in three formats:
 
 - **XYZ point cloud** — for CAD lofting or point‑curve workflows  
-- **ASCII STL mesh** — for 3D printing or CFD meshing  
+- **ASCII STL mesh** — for 3D printing, CFD meshing, or mechanical integration  
 - **SVG 2D line art** — for laser cutting, DXF conversion, or vector CAD
+
+The STL exporter includes advanced geometry features:
+
+- **Spike truncation** (0.4–1.0 of full length)  
+- **Mounting flange extrusion** with configurable thickness and radius  
+- **Bolt circle generation** (bolt count, bolt‑hole radius, bolt‑circle radius)  
+- **Bolt‑hole cylinders** modeled directly into the STL mesh  
+
+These additions allow direct export of **mechanically mountable aerospike geometries**, suitable for:
+
+- test‑stand hardware  
+- thrust‑stand fixtures  
+- 3D‑printed prototypes  
+- CFD inlet/outlet boundary modeling  
+- CAD assemblies
 
 The SVG export produces a clean mirrored 2D contour suitable for manufacturing templates.
 
