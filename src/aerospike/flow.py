@@ -7,79 +7,82 @@ import numpy as np
 
 from .types import EngineParameters
 
-R_MOLAR: Final = 8.314
+R_MOLAR: Final = 8.314510  # Standard molar gas constant (J/(mol*K))
 
 
 def get_Mach(params: EngineParameters) -> float:
-    """Explicit inversion of Stodola’s Area–Mach equation."""
-    n = 5
-    X = np.zeros(n)
-    M = np.zeros(n)
+    """Compute exit Mach number Me from expansion ratio er."""
+    er = params.er
+    if er <= 1.0:
+        return 1.0
 
-    e = 1.0 / params.er
     y = params.gamma
-    B = (y + 1) / (y - 1)
-    k = (0.5 * (y - 1)) ** 0.5
-    u = e ** (1 / B) / (1 + k * k) ** 0.5
+    k = (y - 1) / 2
+    exponent = (y + 1) / (2 * (y - 1))
+    c = (2 / (y + 1)) ** exponent
 
-    X[0] = (u * k) ** (B / (1 - B))
-    M[0] = X[0]
+    Me = np.sqrt(2 / (y - 1) * ((er / c) ** ((y - 1) / exponent) - 1))
+    Me = max(1.1, float(Me))
 
-    for i in range(1, n):
-        lamb = 1 / (
-            2 * M[i - 1] ** (2 / B) * (B - 2) + M[i - 1] ** 2 * B * B * k * k * u * u
-        )
+    for _ in range(20):
+        term = 1 + k * Me * Me
+        f = (1 / Me) * ((c * term) ** exponent) - er
+        df = ((c * term) ** exponent) * ((y + 1) * k * Me * Me / term - 1) / (Me * Me)
 
-        X[i] = (
-            lamb
-            * M[i - 1]
-            * B
-            * (
-                M[i - 1] ** (2 / B)
-                - M[i - 1] ** 2 * B * k * k * u * u
-                + (
-                    M[i - 1] ** (2 + 2 / B) * k * k * u * u * (B * B - 4 * B + 4)
-                    - M[i - 1] ** 2 * B * B * k * k * u**4
-                    + M[i - 1] ** (4 / B) * (2 * B - 3)
-                    + 2 * M[i - 1] ** (2 / B) * u * u * (2 - B)
-                )
-                ** 0.5
-            )
-        )
+        dM = f / df
+        Me -= dM
 
-        M[i] = M[i - 1] + X[i]
+        if abs(dM) < 1e-7:
+            break
 
-    return float(np.real(M[-1]))
+    return float(Me)
 
 
 def get_Pe(params: EngineParameters) -> float:
+    """Compute nozzle exit static pressure Pe."""
     Me = get_Mach(params)
     y = params.gamma
     return params.Pc * (1 + (y - 1) / 2 * Me * Me) ** (-y / (y - 1))
 
 
 def get_Pa_from_alt(alt: float) -> float:
-    if alt < 44331:
-        return 100 * ((44331.514 - alt) / 11880.516) ** (1 / 0.1902632)
-    return 0.0
+    """Return ambient pressure Pa for given altitude."""
+    alt = max(0.0, alt)
+    if alt <= 11000:
+        return 101325.0 * (1.0 - 2.25577e-5 * alt) ** 5.25588
+    elif alt <= 25000:
+        return 22632.1 * np.exp(-1.57688e-4 * (alt - 11000))
+    elif alt <= 44331:
+        return 2488.0 * (1.0 - 1.25e-5 * (alt - 25000)) ** -34.163
+    else:
+        return 0.0
 
 
 def get_alt_from_Pa(Pa: float) -> float:
-    if Pa > 0:
-        return 44331.5 - 4946.62 * Pa**0.190263
-    return 0.0
+    """Return altitude estimate from ambient pressure Pa."""
+    if Pa >= 101325.0:
+        return 0.0
+    elif Pa >= 22632.1:
+        return (1.0 - (Pa / 101325.0) ** (1 / 5.25588)) / 2.25577e-5
+    elif Pa >= 2488.0:
+        return 11000.0 - np.log(Pa / 22632.1) / 1.57688e-4
+    elif Pa > 0.0:
+        return 25000.0 + (1.0 - (Pa / 2488.0) ** (-1 / 34.163)) / 1.25e-5
+    else:
+        return 80000.0
 
 
 def get_thrust(params: EngineParameters) -> float:
+    """Compute ideal thrust from chamber pressure and geometry."""
     y = params.gamma
     Pe = get_Pe(params)
 
-    C_F = (
+    C_F = np.sqrt(
         (2 * y * y)
         / (y - 1)
         * (2 / (y + 1)) ** ((y + 1) / (y - 1))
         * (1 - (Pe / params.Pc) ** ((y - 1) / y))
-    ) ** 0.5
+    )
 
     Ae = np.pi * params.Re * params.Re
     At = Ae / params.er
@@ -87,10 +90,7 @@ def get_thrust(params: EngineParameters) -> float:
 
 
 def get_Re_from_mass_flow(params: EngineParameters, m_dot: float) -> float:
-    """
-    Compute shroud radius from desired mass flow.
-    Based on Rocket Propulsion Elements Eq. 3-24.
-    """
+    """Compute shroud radius Re from target mass flow."""
     y = params.gamma
     R = R_MOLAR / params.molar_m * 1000.0
 
@@ -98,74 +98,42 @@ def get_Re_from_mass_flow(params: EngineParameters, m_dot: float) -> float:
         params.Pc
         * y
         * (2 / (y + 1)) ** ((y + 1) / (2 * y - 2))
-        / (y * R * params.Tc) ** 0.5
+        / np.sqrt(y * R * params.Tc)
     )
 
     Ae = At * params.er
-    Re = (Ae / np.pi) ** 0.5
-    return float(Re)
+    return float(np.sqrt(Ae / np.pi))
 
 
 def get_Re_from_thrust(params: EngineParameters, F: float) -> float:
-    """
-    Compute shroud radius from desired thrust.
-    Based on Rocket Propulsion Elements Eq. 3-30.
-    """
+    """Compute shroud radius Re from target thrust."""
     y = params.gamma
     Pe = get_Pe(params)
 
-    C_F = (
+    C_F = np.sqrt(
         (2 * y * y)
         / (y - 1)
         * (2 / (y + 1)) ** ((y + 1) / (y - 1))
         * (1 - (Pe / params.Pc) ** ((y - 1) / y))
-    ) ** 0.5
+    )
 
     At = F / (C_F * params.Pc)
     Ae = At * params.er
-    Re = (Ae / np.pi) ** 0.5
-    return float(Re)
+    return float(np.sqrt(Ae / np.pi))
 
 
 def get_er_from_Pe(
     params: EngineParameters, Pe_target: float, tol: float = 1e-3, max_iter: int = 50
 ) -> float:
-    """
-    Compute expansion ratio er such that exit pressure Pe matches Pe_target.
-    Uses monotonic bisection because Pe(er) is strictly decreasing.
+    """Compute expansion ratio er from target exit pressure Pe."""
+    if Pe_target >= params.Pc:
+        return 1.0
 
-    Parameters
-    ----------
-    params : EngineParameters
-        Current engine parameters (er will be replaced during iteration).
-    Pe_target : float
-        Desired exit pressure [Pa].
-    tol : float
-        Absolute tolerance on Pe.
-    max_iter : int
-        Maximum number of bisection iterations.
+    y = params.gamma
 
-    Returns
-    -------
-    float
-        Expansion ratio er that yields Pe ≈ Pe_target.
-    """
-    # Reasonable bounds for typical aerospike designs
-    er_low = 1.0
-    er_high = 200.0
+    Me = np.sqrt(2 / (y - 1) * ((params.Pc / Pe_target) ** ((y - 1) / y) - 1))
 
-    for _ in range(max_iter):
-        er_mid = 0.5 * (er_low + er_high)
-        params_mid = replace(params, er=er_mid)
-        Pe_mid = get_Pe(params_mid)
+    exponent = (y + 1) / (2 * (y - 1))
+    er = (1 / Me) * ((2 / (y + 1) * (1 + (y - 1) / 2 * Me * Me)) ** exponent)
 
-        if abs(Pe_mid - Pe_target) < tol:
-            return er_mid
-
-        # Pe decreases as er increases
-        if Pe_mid > Pe_target:
-            er_low = er_mid
-        else:
-            er_high = er_mid
-
-    return er_mid
+    return float(er)
