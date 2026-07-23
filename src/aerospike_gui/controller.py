@@ -55,24 +55,40 @@ class Controller:
 
     def run_altitude_sweep(self, alt_min: float = 0.0, alt_max: float = 40000.0, steps: int = 41):
         """
-        Run the solver across a range of altitudes to generate off-design performance curves.
-        Returns altitudes [km], thrusts [N], and thrust coefficients [-].
+        Run the solver across a range of altitudes to generate off-design performance curves
+        for both the aerospike and a comparable standard bell nozzle.
+        Returns altitudes [km], aerospike thrusts [N], bell thrusts [N], and aerospike Cfs.
         """
         import numpy as np
         from aerospike.flow import get_Pa_from_alt
         from aerospike.solver import solve
 
         altitudes = np.linspace(alt_min, alt_max, steps)
-        thrusts = []
+        spike_thrusts = []
+        bell_thrusts = []
         cfs = []
+
+        # Run first point to get baseline exit characteristics for the bell estimation
+        baseline_res = solve(self.params, Pa=get_Pa_from_alt(alt_min))
+        mdot = baseline_res.m_dot
+        ve = baseline_res.Ve
+        pe = baseline_res.Pe
+        ae = baseline_res.Ae
 
         for alt in altitudes:
             Pa_pa = get_Pa_from_alt(alt)
+            
+            # 1. Aerospike solve (handles altitude compensation natively)
             res = solve(self.params, Pa=Pa_pa)
-            thrusts.append(res.F)
+            spike_thrusts.append(res.F)
             cfs.append(res.Cf)
 
-        return altitudes / 1e3, np.array(thrusts), np.array(cfs)
+            # 2. Equivalent Bell Nozzle performance at this altitude
+            # F_bell = mdot * Ve + (Pe - Pa) * Ae
+            f_bell = mdot * ve + (pe - Pa_pa) * ae
+            bell_thrusts.append(max(0.0, f_bell)) # Thrust cannot go negative physically in this simple model
+
+        return altitudes / 1e3, np.array(spike_thrusts), np.array(bell_thrusts), np.array(cfs)
 
     def plot(self) -> None:
         """
