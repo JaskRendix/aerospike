@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -12,13 +13,21 @@ from PySide6.QtWidgets import (
 from aerospike.flow import get_alt_from_Pa, get_Pa_from_alt
 from aerospike_gui.controller import Controller
 
+ALTITUDE_PRESETS = {
+    "Custom / Manual": None,
+    "Sea Level (0 m)": 0.0,
+    "5,000 m": 5000.0,
+    "10,000 m": 10000.0,
+    "Vacuum / Orbit": 40000.0,
+}
+
 
 class AmbientInputsWidget(QWidget):
     """
     Widget for ambient conditions:
     - Ambient pressure Pa [kPa]
     - Altitude AMSL [m]
-    Allows switching between pressure input and altitude input.
+    - Altitude/Pressure presets selector
     """
 
     def __init__(self, controller: Controller, parent: QWidget | None = None) -> None:
@@ -26,6 +35,12 @@ class AmbientInputsWidget(QWidget):
         self.controller = controller
 
         layout = QFormLayout(self)
+
+        # --- Altitude / Flight Presets ---
+        self.alt_preset_combo = QComboBox()
+        self.alt_preset_combo.addItems(list(ALTITUDE_PRESETS.keys()))
+        self.alt_preset_combo.currentIndexChanged.connect(self.on_preset_selected)
+        layout.addRow("Flight Regime Preset", self.alt_preset_combo)
 
         # --- Mode selection: Pa or altitude ---
         mode_layout = QHBoxLayout()
@@ -44,7 +59,7 @@ class AmbientInputsWidget(QWidget):
         # --- Ambient Pressure Pa [kPa] ---
         self.pa_box = QDoubleSpinBox()
         self.pa_box.setRange(0.0, 110.0)
-        self.pa_box.setDecimals(1)
+        self.pa_box.setDecimals(3)
         self.pa_box.setSingleStep(1.0)
         self.pa_box.setValue(controller.Pa / 1e3)
         self.pa_box.valueChanged.connect(self.on_pa_changed)
@@ -60,11 +75,19 @@ class AmbientInputsWidget(QWidget):
         self.alt_box.setEnabled(False)
         layout.addRow("Altitude [m]", self.alt_box)
 
+    @Slot(int)
+    def on_preset_selected(self, index: int) -> None:
+        name = self.alt_preset_combo.currentText()
+        alt = ALTITUDE_PRESETS.get(name)
+        if alt is None:
+            return  # Custom selected
+
+        # Switch to altitude mode automatically when choosing an altitude preset
+        self.alt_mode.setChecked(True)
+        self.alt_box.setValue(alt)
+
     @Slot()
     def on_mode_changed(self) -> None:
-        """
-        Enable/disable input boxes depending on selected mode.
-        """
         if self.pa_mode.isChecked():
             self.pa_box.setEnabled(True)
             self.alt_box.setEnabled(False)
@@ -74,19 +97,16 @@ class AmbientInputsWidget(QWidget):
 
     @Slot(float)
     def on_pa_changed(self, value: float) -> None:
-        """
-        Pa changed in GUI (kPa → Pa).
-        Update controller and altitude box.
-        """
+        self.alt_preset_combo.setCurrentText("Custom / Manual")
         self.controller.update_ambient_pressure(value)
+        self.alt_box.blockSignals(True)
         self.alt_box.setValue(get_alt_from_Pa(self.controller.Pa))
+        self.alt_box.blockSignals(False)
 
     @Slot(float)
     def on_alt_changed(self, value: float) -> None:
-        """
-        Altitude changed in GUI (m → Pa).
-        Update controller and pressure box.
-        """
         Pa = get_Pa_from_alt(value)
         self.controller.update_ambient_pressure(Pa / 1e3)
+        self.pa_box.blockSignals(True)
         self.pa_box.setValue(Pa / 1e3)
+        self.pa_box.blockSignals(False)
